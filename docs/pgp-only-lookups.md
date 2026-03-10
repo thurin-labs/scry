@@ -44,6 +44,16 @@ Support lookup by the last 16 hex chars of a fingerprint (the "long key ID"). Th
 
 Option 1 could ship independently. Option 2 is a v2 contract conversation.
 
+## WKD Integration (Related)
+
+Fetch PGP keys from a user's own domain via Web Key Directory instead of (or in addition to) a keyserver. If the WKD server sets CORS headers, Scry can fetch directly from the browser.
+
+- Extract email domain from PGP key UIDs, derive WKD URL (direct/advanced method)
+- If key matches the on-chain fingerprint, show as an additional proof: "WKD: verified on example.com"
+- openpgp.js has built-in WKD support
+- Only works when the server sets `Access-Control-Allow-Origin` — progressive enhancement, not a requirement
+- Reference: [Your Key, Your Domain](https://benwoodall.eth.limo/blog/your-key-your-domain-setting-up-wkd-for-pgp-discovery/) blog post recommends CORS-friendly nginx config
+
 ## Decision
 
-Parking both for now. Focus on getting traction with Scry + Signet as-is before broadening scope.
+Parking all three for now. Focus on getting traction with Scry + Signet as-is before broadening scope.

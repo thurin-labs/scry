@@ -121,6 +121,7 @@ function detectInputType(value) {
   const trimmed = value.trim()
   if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) return 'address'
   if (/^[0-9a-fA-F]{40}$/.test(trimmed)) return 'fingerprint'
+  if (/^[0-9a-fA-F]{16}$/.test(trimmed)) return 'keyId'
   if (trimmed.includes('.') && trimmed.length > 3) return 'ens'
   return null
 }
@@ -165,13 +166,14 @@ function parseRoute() {
 
   if (prefix === 'eth' && /^0x[0-9a-fA-F]{40}$/.test(value)) return { type: 'address', value }
   if (prefix === 'pgp' && /^[0-9a-fA-F]{40}$/i.test(value)) return { type: 'fingerprint', value }
+  if (prefix === 'pgp' && /^[0-9a-fA-F]{16}$/i.test(value)) return { type: 'keyId', value }
   if (prefix === 'ens') return { type: 'ens', value }
 
   return null
 }
 
 function pushRoute(type, value) {
-  const prefix = type === 'address' ? 'eth' : type === 'fingerprint' ? 'pgp' : 'ens'
+  const prefix = type === 'address' ? 'eth' : (type === 'fingerprint' || type === 'keyId') ? 'pgp' : 'ens'
   const newHash = `#/${prefix}/${encodeURIComponent(value)}`
   if (window.location.hash !== newHash) {
     window.location.hash = newHash
@@ -816,11 +818,48 @@ function Scry() {
     return () => window.removeEventListener('hashchange', onRoute)
   }, [])
 
+  // Resolve key ID (16 hex chars) → full fingerprint via keyserver
+  const [keyIdResolving, setKeyIdResolving] = useState(false)
+  const [keyIdError, setKeyIdError] = useState(null)
+  useEffect(() => {
+    if (submitted?.type !== 'keyId') return
+    let cancelled = false
+    setKeyIdResolving(true)
+    setKeyIdError(null)
+
+    fetch(`https://keys.openpgp.org/vks/v1/by-keyid/${submitted.value}`)
+      .then(resp => {
+        if (!resp.ok) throw new Error('Key ID not found on keyserver')
+        return resp.text()
+      })
+      .then(armored => readKey({ armoredKey: armored }))
+      .then(key => {
+        if (cancelled) return
+        const fullFingerprint = key.getFingerprint().toUpperCase()
+        setQuery(fullFingerprint)
+        setSubmitted({ type: 'fingerprint', value: fullFingerprint })
+        pushRoute('fingerprint', fullFingerprint)
+        setKeyIdResolving(false)
+      })
+      .catch(err => {
+        if (cancelled) return
+        setKeyIdError(err.message)
+        setKeyIdResolving(false)
+      })
+
+    return () => { cancelled = true }
+  }, [submitted?.type, submitted?.value])
+
   const handleLookup = useCallback(() => {
     if (!inputType) return
     const value = query.trim()
-    setSubmitted({ type: inputType, value })
-    pushRoute(inputType, value)
+    if (inputType === 'keyId') {
+      setSubmitted({ type: 'keyId', value })
+      pushRoute('keyId', value)
+    } else {
+      setSubmitted({ type: inputType, value })
+      pushRoute(inputType, value)
+    }
   }, [query, inputType])
 
   const handleKeyDown = (e) => {
@@ -1010,13 +1049,13 @@ function Scry() {
 
         {query.trim() && !inputType && (
           <div className="status info" style={{ marginTop: 12 }}>
-            Enter a valid ETH address (0x, 42 chars), ENS name (e.g. vitalik.eth), or PGP fingerprint (40 hex chars).
+            Enter a valid ETH address (0x, 42 chars), ENS name (e.g. vitalik.eth), PGP fingerprint (40 hex chars), or key ID (16 hex chars).
           </div>
         )}
 
         {query.trim() && inputType && (
           <div className="scry-detected" style={{ marginTop: 8 }}>
-            Detected: <span className="scry-type">{inputType}</span>
+            Detected: <span className="scry-type">{inputType === 'keyId' ? 'key ID' : inputType}</span>
           </div>
         )}
         {!submitted && (
@@ -1027,6 +1066,18 @@ function Scry() {
       </div>
 
       <div className="scry-results">
+        {/* Key ID resolving */}
+        {keyIdResolving && (
+          <div className="status info" style={{ marginTop: 24 }}>
+            Resolving key ID {submitted?.value}...
+          </div>
+        )}
+        {keyIdError && (
+          <div className="status err" style={{ marginTop: 24 }}>
+            Could not resolve key ID: {keyIdError}
+          </div>
+        )}
+
         {/* ENS resolving */}
         {submitted?.type === 'ens' && ensLoading && (
           <div className="status info" style={{ marginTop: 24 }}>
@@ -1140,7 +1191,7 @@ export default function App() {
             <a href="https://thurin.id" target="_blank" rel="noopener noreferrer">Thurin Labs</a>
             <a href="https://app.thurin.id" target="_blank" rel="noopener noreferrer">Sigil</a>
             <a href="https://signet.thurin.id" target="_blank" rel="noopener noreferrer">Signet</a>
-            <a href="https://thurinlabs.eth.limo" target="_blank" rel="noopener noreferrer">thurinlabs.eth</a>
+            <a href="https://thurin.id/privacy/" target="_blank" rel="noopener noreferrer">Privacy</a>
           </div>
           <div className="footer-col">
             <span className="footer-col-label">Social</span>
