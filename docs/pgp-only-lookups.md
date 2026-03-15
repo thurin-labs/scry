@@ -33,16 +33,9 @@ For unclaimed keys, the on-chain section would show a CTA: "Link this key to you
 - Search input would need to handle bare fingerprints that aren't on-chain
 - Proof verification already works independently — no changes needed there
 
-## Key ID Shorthand (Related)
+## ~~Key ID Shorthand~~ (Shipped)
 
-Support lookup by the last 16 hex chars of a fingerprint (the "long key ID"). This would allow shorter URLs like `scry.thurin.id/#/pgp/CD3D0D7F0C9E5FB8` instead of the full 40-char fingerprint.
-
-### Options
-
-1. **Keyserver resolve** — Hit `keys.openpgp.org` to resolve key ID → full fingerprint, then query the contract. Adds a network request but no contract changes.
-2. **Contract v2** — Store/index by key ID alongside the full fingerprint. Requires contract redeployment and migration of existing attestations.
-
-Option 1 could ship independently. Option 2 is a v2 contract conversation.
+Implemented via Option 1 (keyserver resolve). Scry detects 16-char hex input, resolves the key ID to a full fingerprint via `keys.openpgp.org/vks/v1/by-keyid/`, and then proceeds with the standard lookup flow. URLs like `scry.thurin.id/#/pgp/CD3D0D7F0C9E5FB8` work.
 
 ## WKD Integration (Related)
 
@@ -56,4 +49,4 @@ Fetch PGP keys from a user's own domain via Web Key Directory instead of (or in 
 
 ## Decision
 
-Parking all three for now. Focus on getting traction with Scry + Signet as-is before broadening scope.
+Key ID shorthand is shipped. Parking PGP-only lookups and WKD for now. Focus on getting traction with Scry + Signet as-is before broadening scope.
