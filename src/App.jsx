@@ -514,8 +514,18 @@ function AddressDetail({ address, ensName, ensAvatar, attestations, count, isLoa
         )}
       </div>
 
-      {latest && latest.pgpPublicKey && (
+      {latest && latest.pgpPublicKey ? (
         <PgpKeyInfo armoredKey={latest.pgpPublicKey} />
+      ) : attestations.length > 0 && (
+        <div className="detail-history">
+          <div className="mono-box" style={{ marginBottom: 2 }}>
+            <div className="label">Identity Proofs</div>
+            <div className="value" style={{ color: 'var(--color-text-muted)' }}>No proofs found</div>
+            <div className="proof-docs-footer">
+              <a href="https://docs.thurin.id/#/scry/proofs" target="_blank" rel="noopener noreferrer">how to add proofs</a>
+            </div>
+          </div>
+        </div>
       )}
 
       {attestations.length > 0 && (
@@ -792,7 +802,19 @@ function FingerprintDetail({ fingerprint }) {
         )}
       </div>
 
-      {bestClaim?.pgpPublicKey && <PgpKeyInfo armoredKey={bestClaim.pgpPublicKey} />}
+      {bestClaim?.pgpPublicKey ? (
+        <PgpKeyInfo armoredKey={bestClaim.pgpPublicKey} />
+      ) : claims.length > 0 && (
+        <div className="detail-history">
+          <div className="mono-box" style={{ marginBottom: 2 }}>
+            <div className="label">Identity Proofs</div>
+            <div className="value" style={{ color: 'var(--color-text-muted)' }}>No proofs found</div>
+            <div className="proof-docs-footer">
+              <a href="https://docs.thurin.id/#/scry/proofs" target="_blank" rel="noopener noreferrer">how to add proofs</a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
