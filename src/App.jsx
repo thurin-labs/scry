@@ -343,11 +343,12 @@ function PgpKeyInfo({ armoredKey }) {
         const thurinProofs = keyInfo.notations
           .map((n, i) => ({ notation: n, index: i, proof: identifyProof(n) }))
           .filter(p => p.proof)
-        if (thurinProofs.length === 0) return null
         return (
           <div className="mono-box" style={{ marginBottom: 2 }}>
             <div className="label">Identity Proofs</div>
-            {thurinProofs.map(({ index, proof }) => {
+            {thurinProofs.length === 0 ? (
+              <div className="value" style={{ color: 'var(--color-text-muted)' }}>No proofs found</div>
+            ) : thurinProofs.map(({ index, proof }) => {
               const result = proofResults[index]
               const clean = displayUrl(proof)
               const href = proofHref(proof)
