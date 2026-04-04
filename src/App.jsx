@@ -1231,6 +1231,9 @@ function Scry() {
                 <ScryCard ens="bendoubleu.eth" theme={cardTheme} />
               </IdentityKitProvider>
             </div>
+            <p className="homepage-cta">
+              Add your identity to any website. <a href="https://docs.thurin.id/#/sdk" target="_blank" rel="noopener noreferrer">Get the embed</a>.
+            </p>
           </>
         )}
       </div>
