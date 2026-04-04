@@ -6,6 +6,8 @@ import { normalize } from 'viem/ens'
 import { readKey, readCleartextMessage, verify } from 'openpgp'
 import { REGISTRY_ADDRESS, REGISTRY_ABI, RPC_URL } from './wagmiConfig'
 import { identifyProof, verifyProof, displayUrl, proofHref, proofSecondaryHref } from './proofs'
+import { ScryCard, IdentityKitProvider } from '@thurinlabs/identity-kit'
+import '@thurinlabs/identity-kit/styles'
 
 async function parsePgpKey(armoredKey) {
   try {
@@ -528,6 +530,8 @@ function AddressDetail({ address, ensName, ensAvatar, attestations, count, isLoa
         </div>
       )}
 
+      <EfpSection address={address} />
+
       {attestations.length > 0 && (
         <div className="detail-history">
           <div className="detail-label">Seal History</div>
@@ -585,6 +589,129 @@ function AddressDetail({ address, ensName, ensAvatar, attestations, count, isLoa
         </div>
       )}
     </div>
+  )
+}
+
+// ─── EFP (Ethereum Follow Protocol) ─────────────────────────────────────────
+
+const EFP_API = 'https://api.ethfollow.xyz/api/v1'
+
+function EfpSection({ address }) {
+  const [followers, setFollowers] = useState(0)
+  const [followingList, setFollowingList] = useState([])
+  const [top8, setTop8] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasEfp, setHasEfp] = useState(false)
+
+  useEffect(() => {
+    if (!address) return
+    let cancelled = false
+    setIsLoading(true)
+
+    async function load() {
+      try {
+        // Get primary list ID
+        const listsResp = await fetch(`${EFP_API}/users/${address}/lists`)
+        if (!listsResp.ok) { setIsLoading(false); return }
+        const listsData = await listsResp.json()
+        const listId = listsData.primary_list
+        if (!listId) { setIsLoading(false); return }
+        if (cancelled) return
+
+        setHasEfp(true)
+
+        // Fetch following and top8 via list ID, followers via stats endpoint
+        const [followingResp, statsResp, top8Resp] = await Promise.all([
+          fetch(`${EFP_API}/lists/${listId}/following?limit=100`),
+          fetch(`${EFP_API}/users/${address}/stats`),
+          fetch(`${EFP_API}/lists/${listId}/following?limit=8&tags=top8`),
+        ])
+
+        if (cancelled) return
+
+        const followingData = followingResp.ok ? await followingResp.json() : { following: [] }
+        const statsData = statsResp.ok ? await statsResp.json() : {}
+        const top8Data = top8Resp.ok ? await top8Resp.json() : { following: [] }
+
+        setFollowingList(followingData.following || [])
+        setFollowers(parseInt(statsData.followers_count) || 0)
+        setTop8(top8Data.following || [])
+      } catch {
+        // silently fail — EFP is supplementary
+      }
+      if (!cancelled) setIsLoading(false)
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [address])
+
+  if (!isLoading && !hasEfp) return null
+  if (isLoading) return (
+    <div className="detail-history">
+      <div className="detail-label">Social Graph</div>
+      <div className="mono-box" style={{ marginBottom: 2 }}>
+        <div className="value" style={{ color: 'var(--color-text-muted)' }}>Loading EFP data...</div>
+      </div>
+    </div>
+  )
+
+  const followingCount = followingList.length
+
+  return (
+    <div className="detail-history">
+      <div className="detail-label">
+        Social Graph
+        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginLeft: 8, fontWeight: 'normal' }}>
+          via <a href="https://efp.app" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>EFP</a>
+        </span>
+      </div>
+      <div className="mono-box" style={{ marginBottom: 2 }}>
+        <div className="summary-grid" style={{ marginBottom: top8.length > 0 ? 12 : 0 }}>
+          <div className="summary-item">
+            <span className="summary-value">{followers}</span>
+            <span className="summary-key">Followers</span>
+          </div>
+          <div className="summary-item">
+            <span className="summary-value">{followingCount}</span>
+            <span className="summary-key">Following</span>
+          </div>
+        </div>
+        {top8.length > 0 && (
+          <>
+            <div className="label">Top 8</div>
+            <div className="efp-top8">
+              {top8.map((f, i) => (
+                <EfpFollowItem key={i} address={f.data} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div style={{ textAlign: 'right', marginTop: 4 }}>
+        <a
+          href={`https://efp.app/${address}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}
+        >
+          view full profile on efp.app
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function EfpFollowItem({ address }) {
+  const { data: ensName } = useEnsName({
+    address,
+    chainId: mainnet.id,
+    query: { enabled: !!address },
+  })
+  return (
+    <a href={`#/eth/${address}`} className="efp-top8-item" title={address}>
+      {ensName || `${address.slice(0, 8)}...${address.slice(-4)}`}
+    </a>
   )
 }
 
@@ -824,6 +951,17 @@ function FingerprintDetail({ fingerprint }) {
 function Scry() {
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState(null)
+  const [cardTheme, setCardTheme] = useState(
+    () => document.documentElement.dataset.theme || 'thurin'
+  )
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setCardTheme(document.documentElement.dataset.theme || 'thurin')
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
 
   const inputType = detectInputType(query)
 
@@ -1082,9 +1220,18 @@ function Scry() {
           </div>
         )}
         {!submitted && (
-          <p className="helper" style={{ marginTop: 16, marginBottom: 0, textAlign: 'center' }}>
-            Don't have an identity claim yet? <a href="https://signet.thurin.id" target="_blank" rel="noopener noreferrer">Create one on Signet</a>.
-          </p>
+          <>
+            <p className="helper" style={{ marginTop: 16, marginBottom: 0, textAlign: 'center' }}>
+              Don't have an identity claim yet? <a href="https://signet.thurin.id" target="_blank" rel="noopener noreferrer">Create one on Signet</a>.
+            </p>
+            <h2 className="homepage-headline">See the full picture behind any Ethereum identity.</h2>
+            <div className="homepage-cards">
+              <IdentityKitProvider neynarApiKey={import.meta.env.VITE_NEYNAR_API_KEY}>
+                <ScryCard ens="vitalik.eth" theme={cardTheme} />
+                <ScryCard ens="bendoubleu.eth" theme={cardTheme} />
+              </IdentityKitProvider>
+            </div>
+          </>
         )}
       </div>
 
@@ -1207,12 +1354,11 @@ export default function App() {
       <Scry />
 
       <footer className="footer">
-        <span className="footer-version">scry v0.1.0</span>
+        <span className="footer-version">scry v0.2.0</span>
         <div className="footer-columns">
           <div className="footer-col">
             <span className="footer-col-label">Home</span>
             <a href="https://thurin.id" target="_blank" rel="noopener noreferrer">Thurin Labs</a>
-            <a href="https://app.thurin.id" target="_blank" rel="noopener noreferrer">Sigil</a>
             <a href="https://signet.thurin.id" target="_blank" rel="noopener noreferrer">Signet</a>
             <a href="https://thurin.id/privacy/" target="_blank" rel="noopener noreferrer">Privacy</a>
           </div>
@@ -1224,6 +1370,7 @@ export default function App() {
           </div>
           <div className="footer-col">
             <span className="footer-col-label">Dev</span>
+            <a href="https://codeberg.org/thurinlabs" target="_blank" rel="noopener noreferrer">Codeberg</a>
             <a href="https://github.com/thurin-labs" target="_blank" rel="noopener noreferrer">GitHub</a>
             <a href="https://docs.thurin.id" target="_blank" rel="noopener noreferrer">Docs</a>
           </div>

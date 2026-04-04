@@ -19,6 +19,18 @@ const PROVIDERS = [
     pattern: /^https:\/\/farcaster\.xyz\/([^/]+)\/(0x[a-f0-9]+)$/i,
     parse: (m) => ({ user: m[1], castHash: m[2] }),
   },
+  {
+    provider: 'codeberg',
+    label: 'Codeberg',
+    pattern: /^https:\/\/codeberg\.org\/([^/]+)\/([^/]+)$/i,
+    parse: (m) => ({ user: m[1], repo: m[2] }),
+  },
+  {
+    provider: 'mastodon',
+    label: 'Mastodon',
+    pattern: /^https:\/\/([^/]+)\/@([^/]+)$/i,
+    parse: (m) => ({ instance: m[1], user: m[2] }),
+  },
 ]
 
 export function identifyProof(notation) {
@@ -38,6 +50,8 @@ export function displayUrl(proof) {
   if (proof.provider === 'dns') return proof.domain
   if (proof.provider === 'github') return proof.user
   if (proof.provider === 'farcaster') return `@${proof.user}`
+  if (proof.provider === 'codeberg') return proof.user
+  if (proof.provider === 'mastodon') return `@${proof.user}@${proof.instance}`
   return proof.url
 }
 
@@ -45,6 +59,8 @@ export function proofHref(proof) {
   if (proof.provider === 'dns') return `https://${proof.domain}`
   if (proof.provider === 'github') return `https://github.com/${proof.user}`
   if (proof.provider === 'farcaster') return `https://farcaster.xyz/${proof.user}`
+  if (proof.provider === 'codeberg') return `https://codeberg.org/${proof.user}`
+  if (proof.provider === 'mastodon') return `https://${proof.instance}/@${proof.user}`
   if (proof.url.startsWith('http')) return proof.url
   return null
 }
@@ -52,6 +68,8 @@ export function proofHref(proof) {
 export function proofSecondaryHref(proof) {
   if (proof.provider === 'github') return proof.url
   if (proof.provider === 'farcaster') return proof.url
+  if (proof.provider === 'codeberg') return proof.url
+  if (proof.provider === 'mastodon') return proof.url
   return null
 }
 
@@ -148,10 +166,66 @@ async function verifyFarcaster(proof, fingerprint) {
   }
 }
 
+async function verifyCodeberg(proof, fingerprint) {
+  try {
+    const resp = await fetch(
+      `https://codeberg.org/api/v1/repos/${encodeURIComponent(proof.user)}/${encodeURIComponent(proof.repo)}`,
+    )
+    if (!resp.ok) return { verified: false, reason: `Codeberg API returned ${resp.status}` }
+    const data = await resp.json()
+
+    if (data.description && containsFingerprint(data.description, fingerprint)) {
+      return { verified: true }
+    }
+
+    return { verified: false, reason: 'Fingerprint token not found in repo description' }
+  } catch (err) {
+    return { verified: false, reason: `Codeberg fetch failed: ${err.message}` }
+  }
+}
+
+function containsFingerprintUrl(text, fingerprint) {
+  return text.toUpperCase().includes(fingerprint.toUpperCase())
+}
+
+async function verifyMastodon(proof, fingerprint) {
+  try {
+    const resp = await fetch(
+      `https://${proof.instance}/api/v1/accounts/lookup?acct=${encodeURIComponent(proof.user)}`,
+    )
+    if (!resp.ok) return { verified: false, reason: `Mastodon API returned ${resp.status}` }
+    const data = await resp.json()
+
+    const keyId = fingerprint.slice(-16)
+
+    // Check profile metadata fields (value may contain HTML links)
+    for (const field of data.fields || []) {
+      const text = field.value.replace(/<[^>]*>/g, '')
+      if (containsFingerprintUrl(text, fingerprint) || containsFingerprintUrl(text, keyId)) {
+        return { verified: true }
+      }
+    }
+
+    // Check bio/note (strip HTML tags)
+    if (data.note) {
+      const text = data.note.replace(/<[^>]*>/g, '')
+      if (containsFingerprintUrl(text, fingerprint) || containsFingerprintUrl(text, keyId)) {
+        return { verified: true }
+      }
+    }
+
+    return { verified: false, reason: 'Fingerprint not found in profile fields or bio' }
+  } catch (err) {
+    return { verified: false, reason: `Mastodon fetch failed: ${err.message}` }
+  }
+}
+
 const verifiers = {
   github: verifyGitHub,
   dns: verifyDNS,
   farcaster: verifyFarcaster,
+  codeberg: verifyCodeberg,
+  mastodon: verifyMastodon,
 }
 
 export async function verifyProof(proof, fingerprint) {
