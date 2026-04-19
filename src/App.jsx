@@ -564,7 +564,7 @@ function AddressDetail({ address, ensName, ensAvatar, attestations, count, isLoa
                   <tr key={a.index}>
                     <td className="att-index">{a.index}</td>
                     <td>
-                      <a href={`#/pgp/${a.fingerprint.toUpperCase()}`} className="fingerprint-link">
+                      <a href={`/pgp/${a.fingerprint.toUpperCase()}`} className="fingerprint-link">
                         {a.fingerprint.toUpperCase().slice(0, 8)}...{a.fingerprint.toUpperCase().slice(-8)}
                       </a>
                     </td>
@@ -722,7 +722,7 @@ function EfpFollowItem({ address }) {
     query: { enabled: !!address },
   })
   return (
-    <a href={`#/eth/${address}`} className="efp-top8-item" title={address}>
+    <a href={`/eth/${address}`} className="efp-top8-item" title={address}>
       {ensName || `${address.slice(0, 8)}...${address.slice(-4)}`}
     </a>
   )
@@ -743,7 +743,7 @@ function ClaimAddressCell({ address }) {
     <div className="claim-address-cell">
       {ensAvatar && <img src={ensAvatar} alt="" className="ens-avatar-sm" />}
       <div>
-        <a href={`#/eth/${address}`} className="address-link">
+        <a href={`/eth/${address}`} className="address-link">
           {ensName || `${address.slice(0, 8)}...${address.slice(-6)}`}
         </a>
       </div>
