@@ -96,11 +96,11 @@ async function verifyAttestation({ pgpPublicKey, pgpSignature, fingerprint, ethA
 
 const mainnetClient = createPublicClient({
   chain: mainnet,
-  transport: http('https://ethereum-rpc.publicnode.com'),
+  transport: http(import.meta.env.VITE_ALCHEMY_RPC_URL),
 })
 
 const CONTRACT_DEPLOY_BLOCK = 24515891n
-const LOG_CHUNK_SIZE = 49999n
+const LOG_CHUNK_SIZE = 999999n
 
 async function getLogsChunked(params) {
   const latest = await mainnetClient.getBlockNumber()
@@ -153,17 +153,30 @@ function copyToClipboard(text, e) {
   }
 }
 
-// ─── Hash routing ───────────────────────────────────────────────────────────
+// ─── Path routing ───────────────────────────────────────────────────────────
 
 function parseRoute() {
+  // Check for legacy hash routes and redirect
   const hash = window.location.hash.replace(/^#\/?/, '')
-  if (!hash) return null
+  if (hash) {
+    const slash = hash.indexOf('/')
+    if (slash !== -1) {
+      const prefix = hash.slice(0, slash).toLowerCase()
+      const value = decodeURIComponent(hash.slice(slash + 1))
+      if (value && (prefix === 'eth' || prefix === 'pgp' || prefix === 'ens')) {
+        window.history.replaceState(null, '', `/${prefix}/${encodeURIComponent(value)}`)
+      }
+    }
+  }
 
-  const slash = hash.indexOf('/')
+  const path = window.location.pathname.replace(/^\/?/, '')
+  if (!path) return null
+
+  const slash = path.indexOf('/')
   if (slash === -1) return null
 
-  const prefix = hash.slice(0, slash).toLowerCase()
-  const value = decodeURIComponent(hash.slice(slash + 1))
+  const prefix = path.slice(0, slash).toLowerCase()
+  const value = decodeURIComponent(path.slice(slash + 1))
   if (!value) return null
 
   if (prefix === 'eth' && /^0x[0-9a-fA-F]{40}$/.test(value)) return { type: 'address', value }
@@ -176,9 +189,9 @@ function parseRoute() {
 
 function pushRoute(type, value) {
   const prefix = type === 'address' ? 'eth' : (type === 'fingerprint' || type === 'keyId') ? 'pgp' : 'ens'
-  const newHash = `#/${prefix}/${encodeURIComponent(value)}`
-  if (window.location.hash !== newHash) {
-    window.location.hash = newHash
+  const newPath = `/${prefix}/${encodeURIComponent(value)}`
+  if (window.location.pathname !== newPath) {
+    window.history.pushState(null, '', newPath)
   }
 }
 
@@ -208,7 +221,7 @@ function ThemeSelect({ storageKey }) {
 function Topbar() {
   return (
     <nav className="topbar">
-      <a href="#/" className="topbar-title" onClick={() => { window.location.hash = ''; window.location.reload(); }}
+      <a href="/" className="topbar-title" onClick={(e) => { e.preventDefault(); window.history.pushState(null, '', '/'); window.dispatchEvent(new PopStateEvent('popstate')); }}
          style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <svg viewBox="20 20 76 76" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
           <path d="M25 80 Q25 25 50 25 Q75 25 75 50" fill="none" stroke="#7c9a3e" strokeWidth="4" strokeLinecap="round"/>
@@ -949,8 +962,8 @@ function FingerprintDetail({ fingerprint }) {
 // ─── Scry ───────────────────────────────────────────────────────────────────
 
 function Scry() {
-  const [query, setQuery] = useState('')
-  const [submitted, setSubmitted] = useState(null)
+  const [query, setQuery] = useState(() => parseRoute()?.value || '')
+  const [submitted, setSubmitted] = useState(() => parseRoute())
   const [cardTheme, setCardTheme] = useState(
     () => document.documentElement.dataset.theme || 'thurin'
   )
@@ -965,18 +978,21 @@ function Scry() {
 
   const inputType = detectInputType(query)
 
-  // On mount + hashchange, parse route and auto-submit
+  // On mount + popstate, parse route and auto-submit
   useEffect(() => {
     function onRoute() {
       const route = parseRoute()
       if (route) {
         setQuery(route.value)
         setSubmitted(route)
+      } else if (window.location.pathname === '/') {
+        setQuery('')
+        setSubmitted(null)
       }
     }
     onRoute()
-    window.addEventListener('hashchange', onRoute)
-    return () => window.removeEventListener('hashchange', onRoute)
+    window.addEventListener('popstate', onRoute)
+    return () => window.removeEventListener('popstate', onRoute)
   }, [])
 
   // Resolve key ID (16 hex chars) → full fingerprint via keyserver
@@ -1357,7 +1373,7 @@ export default function App() {
       <Scry />
 
       <footer className="footer">
-        <span className="footer-version">scry v0.2.0</span>
+        <span className="footer-version">scry v0.3.0</span>
         <div className="footer-columns">
           <div className="footer-col">
             <span className="footer-col-label">Home</span>
