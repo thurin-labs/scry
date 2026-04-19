@@ -156,7 +156,7 @@ function copyToClipboard(text, e) {
 // ─── Path routing ───────────────────────────────────────────────────────────
 
 function parseRoute() {
-  // Check for legacy hash routes and redirect
+  // Check for legacy hash routes — redirect to path on scry.thurin.id, keep hash elsewhere (IPFS/ENS)
   const hash = window.location.hash.replace(/^#\/?/, '')
   if (hash) {
     const slash = hash.indexOf('/')
@@ -164,7 +164,12 @@ function parseRoute() {
       const prefix = hash.slice(0, slash).toLowerCase()
       const value = decodeURIComponent(hash.slice(slash + 1))
       if (value && (prefix === 'eth' || prefix === 'pgp' || prefix === 'ens')) {
-        window.history.replaceState(null, '', `/${prefix}/${encodeURIComponent(value)}`)
+        if (window.location.hostname === 'scry.thurin.id') {
+          window.history.replaceState(null, '', `/${prefix}/${encodeURIComponent(value)}`)
+        } else {
+          // On IPFS/ENS, parse the hash route directly
+          return { type: prefix === 'eth' ? 'address' : prefix === 'pgp' ? (/^[0-9a-fA-F]{16}$/i.test(value) ? 'keyId' : 'fingerprint') : 'ens', value }
+        }
       }
     }
   }
@@ -189,9 +194,17 @@ function parseRoute() {
 
 function pushRoute(type, value) {
   const prefix = type === 'address' ? 'eth' : (type === 'fingerprint' || type === 'keyId') ? 'pgp' : 'ens'
-  const newPath = `/${prefix}/${encodeURIComponent(value)}`
-  if (window.location.pathname !== newPath) {
-    window.history.pushState(null, '', newPath)
+  if (window.location.hostname === 'scry.thurin.id') {
+    const newPath = `/${prefix}/${encodeURIComponent(value)}`
+    if (window.location.pathname !== newPath) {
+      window.history.pushState(null, '', newPath)
+    }
+  } else {
+    // IPFS/ENS — use hash routing
+    const newHash = `#/${prefix}/${encodeURIComponent(value)}`
+    if (window.location.hash !== newHash) {
+      window.location.hash = newHash
+    }
   }
 }
 
@@ -992,7 +1005,11 @@ function Scry() {
     }
     onRoute()
     window.addEventListener('popstate', onRoute)
-    return () => window.removeEventListener('popstate', onRoute)
+    window.addEventListener('hashchange', onRoute)
+    return () => {
+      window.removeEventListener('popstate', onRoute)
+      window.removeEventListener('hashchange', onRoute)
+    }
   }, [])
 
   // Resolve key ID (16 hex chars) → full fingerprint via keyserver
@@ -1373,7 +1390,7 @@ export default function App() {
       <Scry />
 
       <footer className="footer">
-        <span className="footer-version">scry v0.3.0</span>
+        <span className="footer-version">scry v0.4.0</span>
         <div className="footer-columns">
           <div className="footer-col">
             <span className="footer-col-label">Home</span>

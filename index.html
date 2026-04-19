@@ -21,7 +21,15 @@
     <meta name="twitter:title" content="Scry — Thurin Identity Explorer" />
     <meta name="twitter:description" content="Explore and verify the Thurin identity graph. Look up addresses, ENS names, and GPG fingerprints." />
     <meta name="twitter:image" content="https://scry.thurin.id/og-image.png" />
-    <script>document.documentElement.dataset.theme = localStorage.getItem('thurin-scry-theme') || 'thurin';</script>
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem('thurin-scry-theme') || 'thurin';
+      // Set base href to root on scry.thurin.id so path-routed pages load assets correctly
+      if (window.location.hostname === 'scry.thurin.id') {
+        var base = document.createElement('base');
+        base.href = '/';
+        document.head.prepend(base);
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
