@@ -1390,7 +1390,7 @@ export default function App() {
       <Scry />
 
       <footer className="footer">
-        <span className="footer-version">scry v0.4.0</span>
+        <span className="footer-version">scry v0.4.1</span>
         <div className="footer-columns">
           <div className="footer-col">
             <span className="footer-col-label">Home</span>
@@ -1407,7 +1407,7 @@ export default function App() {
           <div className="footer-col">
             <span className="footer-col-label">Dev</span>
             <a href="https://codeberg.org/thurinlabs" target="_blank" rel="noopener noreferrer">Codeberg</a>
-            <a href="https://github.com/thurin-labs" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://github.com/thurinlabs" target="_blank" rel="noopener noreferrer">GitHub</a>
             <a href="https://docs.thurin.id" target="_blank" rel="noopener noreferrer">Docs</a>
           </div>
         </div>
